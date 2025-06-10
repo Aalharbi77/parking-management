@@ -1,0 +1,121 @@
+function doPost(e) {
+  try {
+    // Parse incoming data
+    let data;
+    
+    // Handle both JSON and form data
+    if (e.postData && e.postData.contents) {
+      data = JSON.parse(e.postData.contents);
+    } else if (e.parameter && e.parameter.data) {
+      data = JSON.parse(e.parameter.data);
+    } else {
+      throw new Error('No data received');
+    }
+    
+    // Your Google Sheet ID (already set to your sheet)
+    const sheetId = '18IVc-j-atKucC00anMza9wVkeHz1XFhJJnh8uYFFDAA';
+    const sheet = SpreadsheetApp.openById(sheetId).getActiveSheet();
+    
+    // Add headers if sheet is empty
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, 16).setValues([[
+        'Record ID', 'Date & Time', 'Plate Number', 'Category', 'User ID', 
+        'Processed By', 'Room Number', 'Guest Nights', 'Checkout Date', 
+        'Is Checked Out', 'Visitor Charge', 'Group Name', 'Group Date', 
+        'Number of Copies', 'Last Modified', 'Modified By'
+      ]]);
+    }
+    
+    // Add each transaction as a new row
+    data.transactions.forEach(transaction => {
+      const row = [
+        transaction.id,
+        new Date(transaction.date),
+        transaction.plateNumber || '',
+        transaction.category || '',
+        transaction.userId || '',
+        transaction.processedBy || '',
+        transaction.roomNumber || '',
+        transaction.guestNights || '',
+        transaction.checkoutDate ? new Date(transaction.checkoutDate) : '',
+        transaction.isCheckout ? 'Yes' : 'No',
+        transaction.charge || '',
+        transaction.groupName || '',
+        transaction.groupDate ? new Date(transaction.groupDate) : '',
+        transaction.copies || '',
+        transaction.lastModified ? new Date(transaction.lastModified) : '',
+        transaction.modifiedBy || ''
+      ];
+      
+      sheet.appendRow(row);
+    });
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({success: true, message: 'Data saved to Google Sheets'}))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({success: false, error: error.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Handle GET requests for data retrieval
+function doGet(e) {
+  try {
+    const action = e.parameter.action;
+    
+    if (action === 'getData') {
+      // Return all data from the sheet
+      const sheetId = '18IVc-j-atKucC00anMza9wVkeHz1XFhJJnh8uYFFDAA';
+      const sheet = SpreadsheetApp.openById(sheetId).getActiveSheet();
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        // No data (only headers or empty)
+        return ContentService
+          .createTextOutput(JSON.stringify({success: true, data: []}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      // Get all data (skip header row)
+      const range = sheet.getRange(2, 1, lastRow - 1, 16);
+      const values = range.getValues();
+      
+      // Convert to objects
+      const data = values.map(row => ({
+        recordId: row[0],
+        dateTime: row[1],
+        plateNumber: row[2],
+        category: row[3],
+        userId: row[4],
+        processedBy: row[5],
+        roomNumber: row[6],
+        guestNights: row[7],
+        checkoutDate: row[8],
+        isCheckout: row[9],
+        visitorCharge: row[10],
+        groupName: row[11],
+        groupDate: row[12],
+        numberOfCopies: row[13],
+        lastModified: row[14],
+        modifiedBy: row[15]
+      }));
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, data: data}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Default response for regular browser visits
+    return ContentService
+      .createTextOutput('Parking Management API is running. Last updated: ' + new Date().toLocaleString())
+      .setMimeType(ContentService.MimeType.TEXT);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({success: false, error: error.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
